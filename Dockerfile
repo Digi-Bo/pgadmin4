@@ -2,14 +2,11 @@
 #
 # pgAdmin 4 - PostgreSQL Tools
 #
-# Copyright (C) 2013 - 2024, The pgAdmin Development Team
-# This software is released under the PostgreSQL Licence
-#
 #########################################################################
 
 #########################################################################
-# Create a Node container which will be used to build the JS components
-# and clean up the web/ source code
+# Créer un conteneur Node pour construire les composants JS
+# et nettoyer le code source web/
 #########################################################################
 
 FROM alpine:latest AS app-builder
@@ -32,9 +29,7 @@ RUN apk add --no-cache \
     zlib-dev
 
 COPY .git .git
-# Create the /pgadmin4 directory and copy the source into it. Explicitly
-# remove the node_modules directory as we'll recreate a clean version, as well
-# as various other files we don't want
+# Créer le répertoire /pgadmin4 et copier le code source dans celui-ci
 COPY web /pgadmin4/web
 RUN rm -rf /pgadmin4/web/*.log \
            /pgadmin4/web/config_*.py \
@@ -45,7 +40,7 @@ RUN rm -rf /pgadmin4/web/*.log \
 
 WORKDIR /pgadmin4/web
 
-# Build the JS vendor code in the app-builder, and then remove the vendor source.
+# Build le code JS dans le conteneur app-builder, puis nettoyer les fichiers inutiles
 RUN export CPPFLAGS="-DPNG_ARM_NEON_OPT=0" && \
     npm install -g corepack && \
     corepack enable && \
@@ -65,12 +60,12 @@ RUN export CPPFLAGS="-DPNG_ARM_NEON_OPT=0" && \
            /pgadmin4/.git
 
 #########################################################################
-# Next, create the base environment for Python
+# Environnement de base Python
 #########################################################################
 
 FROM alpine:latest AS env-builder
 
-# Install dependencies
+# Installer les dépendances
 COPY requirements.txt /
 RUN apk add --no-cache \
         make \
@@ -93,108 +88,54 @@ RUN apk add --no-cache \
     apk del --no-cache build-deps
 
 #########################################################################
-# Now, create a documentation build container for the Sphinx docs
+# Build de la documentation avec Sphinx
 #########################################################################
 
 FROM env-builder AS docs-builder
 
-# Install Sphinx
-RUN /venv/bin/python3 -m pip install --no-cache-dir sphinx
-RUN /venv/bin/python3 -m pip install --no-cache-dir sphinxcontrib-youtube
+RUN /venv/bin/python3 -m pip install --no-cache-dir sphinx sphinxcontrib-youtube
 
-# Copy the docs from the local tree. Explicitly remove any existing builds that
-# may be present
 COPY docs /pgadmin4/docs
 COPY web /pgadmin4/web
 RUN rm -rf /pgadmin4/docs/en_US/_build
-
-# Build the docs
 RUN LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 /venv/bin/sphinx-build /pgadmin4/docs/en_US /pgadmin4/docs/en_US/_build/html
 
-# Cleanup unwanted files
-RUN rm -rf /pgadmin4/docs/en_US/_build/html/.doctrees
-RUN rm -rf /pgadmin4/docs/en_US/_build/html/_sources
-RUN rm -rf /pgadmin4/docs/en_US/_build/html/_static/*.png
-
 #########################################################################
-# Create additional builders to get all of the PostgreSQL utilities
-#########################################################################
-
-FROM postgres:12-alpine AS pg12-builder
-FROM postgres:13-alpine AS pg13-builder
-FROM postgres:14-alpine AS pg14-builder
-FROM postgres:15-alpine AS pg15-builder
-FROM postgres:16-alpine AS pg16-builder
-FROM postgres:17-alpine AS pg17-builder
-
-FROM alpine:latest AS tool-builder
-
-# Copy the PG binaries
-COPY --from=pg12-builder /usr/local/bin/pg_dump /usr/local/pgsql/pgsql-12/
-COPY --from=pg12-builder /usr/local/bin/pg_dumpall /usr/local/pgsql/pgsql-12/
-COPY --from=pg12-builder /usr/local/bin/pg_restore /usr/local/pgsql/pgsql-12/
-COPY --from=pg12-builder /usr/local/bin/psql /usr/local/pgsql/pgsql-12/
-
-COPY --from=pg13-builder /usr/local/bin/pg_dump /usr/local/pgsql/pgsql-13/
-COPY --from=pg13-builder /usr/local/bin/pg_dumpall /usr/local/pgsql/pgsql-13/
-COPY --from=pg13-builder /usr/local/bin/pg_restore /usr/local/pgsql/pgsql-13/
-COPY --from=pg13-builder /usr/local/bin/psql /usr/local/pgsql/pgsql-13/
-
-COPY --from=pg14-builder /usr/local/bin/pg_dump /usr/local/pgsql/pgsql-14/
-COPY --from=pg14-builder /usr/local/bin/pg_dumpall /usr/local/pgsql/pgsql-14/
-COPY --from=pg14-builder /usr/local/bin/pg_restore /usr/local/pgsql/pgsql-14/
-COPY --from=pg14-builder /usr/local/bin/psql /usr/local/pgsql/pgsql-14/
-
-COPY --from=pg15-builder /usr/local/bin/pg_dump /usr/local/pgsql/pgsql-15/
-COPY --from=pg15-builder /usr/local/bin/pg_dumpall /usr/local/pgsql/pgsql-15/
-COPY --from=pg15-builder /usr/local/bin/pg_restore /usr/local/pgsql/pgsql-15/
-COPY --from=pg15-builder /usr/local/bin/psql /usr/local/pgsql/pgsql-15/
-
-COPY --from=pg16-builder /usr/local/bin/pg_dump /usr/local/pgsql/pgsql-16/
-COPY --from=pg16-builder /usr/local/bin/pg_dumpall /usr/local/pgsql/pgsql-16/
-COPY --from=pg16-builder /usr/local/bin/pg_restore /usr/local/pgsql/pgsql-16/
-COPY --from=pg16-builder /usr/local/bin/psql /usr/local/pgsql/pgsql-16/
-
-COPY --from=pg17-builder /usr/local/bin/pg_dump /usr/local/pgsql/pgsql-17/
-COPY --from=pg17-builder /usr/local/bin/pg_dumpall /usr/local/pgsql/pgsql-17/
-COPY --from=pg17-builder /usr/local/bin/pg_restore /usr/local/pgsql/pgsql-17/
-COPY --from=pg17-builder /usr/local/bin/psql /usr/local/pgsql/pgsql-17/
-
-#########################################################################
-# Assemble everything into the final container.
+# Assemble le conteneur final pour pgAdmin
 #########################################################################
 
 FROM alpine:latest
 
-# Copy in the Python packages
+# Copier les packages Python
 COPY --from=env-builder /venv /venv
 
-# Copy in the tools
-COPY --from=tool-builder /usr/local/pgsql /usr/local/
+# Copier les outils PostgreSQL depuis les images de versions multiples
+COPY --from=pg17-builder /usr/local/pgsql /usr/local/
 COPY --from=pg17-builder /usr/local/lib/libpq.so.5.17 /usr/lib/
 COPY --from=pg17-builder /usr/lib/libzstd.so.1.5.6 /usr/lib/
 COPY --from=pg17-builder /usr/lib/liblz4.so.1.9.4 /usr/lib/
 
 RUN ln -s libpq.so.5.17 /usr/lib/libpq.so.5 && \
-    ln -s libpq.so.5.17 /usr/lib/libpq.so && \
     ln -s libzstd.so.1.5.6 /usr/lib/libzstd.so.1 && \
     ln -s liblz4.so.1.9.4 /usr/lib/liblz4.so.1
 
 WORKDIR /pgadmin4
 ENV PYTHONPATH=/pgadmin4
 
-# Copy in the code and docs
+# Utiliser les variables d'environnement pour configurer pgAdmin
+ENV PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL}
+ENV PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
+ENV PGADMIN_LISTEN_PORT=${PGADMIN_LISTEN_PORT}
+ENV DATABASE_URL_01=${DATABASE_URL_01}
+
+# Copier le code et la documentation
 COPY --from=app-builder /pgadmin4/web /pgadmin4
 COPY --from=docs-builder /pgadmin4/docs/en_US/_build/html/ /pgadmin4/docs
 COPY pkg/docker/run_pgadmin.py /pgadmin4
 COPY pkg/docker/gunicorn_config.py /pgadmin4
 COPY pkg/docker/entrypoint.sh /entrypoint.sh
 
-# License files
-COPY LICENSE /pgadmin4/LICENSE
-COPY DEPENDENCIES /pgadmin4/DEPENDENCIES
-
-# Install runtime dependencies and configure everything in one RUN step
+# Installer les dépendances runtime et configurer les permissions
 RUN apk add --no-cache \
         python3 \
         bash \
@@ -219,13 +160,17 @@ RUN apk add --no-cache \
     chmod g=u /pgadmin4/config_distro.py && \
     chmod g=u /etc/passwd && \
     setcap CAP_NET_BIND_SERVICE=+eip /usr/bin/python3.12 && \
-    echo "pgadmin ALL = NOPASSWD: /usr/sbin/postfix start" > /etc/sudoers.d/postfix && \
-    echo "pgadminr ALL = NOPASSWD: /usr/sbin/postfix start" >> /etc/sudoers.d/postfix
+    echo "pgadmin ALL = NOPASSWD: /usr/sbin/postfix start" > /etc/sudoers.d/postfix
 
 USER pgadmin
 
-# Finish up
 VOLUME /var/lib/pgadmin
-EXPOSE 80 443
+# Exposer les ports internes pour HTTP et HTTPS
+EXPOSE 80
+EXPOSE 443
 
+# Utiliser les variables d'environnement pour lier pgAdmin au bon port d'écoute
+CMD ["gunicorn", "--bind", "0.0.0.0:${PGADMIN_LISTEN_PORT}", "pgadmin4:app"]
+
+# L'entrypoint de pgAdmin pour démarrer les services
 ENTRYPOINT ["/entrypoint.sh"]
