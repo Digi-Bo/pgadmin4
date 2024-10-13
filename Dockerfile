@@ -109,11 +109,11 @@ FROM alpine:latest
 # Copier les packages Python
 COPY --from=env-builder /venv /venv
 
-# Copier les outils PostgreSQL depuis les images de versions multiples
-COPY --from=pg17-builder /usr/local/pgsql /usr/local/
-COPY --from=pg17-builder /usr/local/lib/libpq.so.5.17 /usr/lib/
-COPY --from=pg17-builder /usr/lib/libzstd.so.1.5.6 /usr/lib/
-COPY --from=pg17-builder /usr/lib/liblz4.so.1.9.4 /usr/lib/
+# Remplacer pg17-builder par l'image PostgreSQL officielle
+COPY --from=postgres:17-alpine /usr/local/pgsql /usr/local/
+COPY --from=postgres:17-alpine /usr/local/lib/libpq.so.5.17 /usr/lib/
+COPY --from=postgres:17-alpine /usr/lib/libzstd.so.1.5.6 /usr/lib/
+COPY --from=postgres:17-alpine /usr/lib/liblz4.so.1.9.4 /usr/lib/
 
 RUN ln -s libpq.so.5.17 /usr/lib/libpq.so.5 && \
     ln -s libzstd.so.1.5.6 /usr/lib/libzstd.so.1 && \
